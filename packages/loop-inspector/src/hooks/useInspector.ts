@@ -32,7 +32,15 @@ export function useInspector({
       if (
         target.hasAttribute('data-loop-inspector-highlight') ||
         target.hasAttribute('data-loop-inspector-panel') ||
-        target.closest('[data-loop-inspector-panel]')
+        target.hasAttribute('data-loop-inspector-sidebar') ||
+        target.hasAttribute('data-loop-inspector-request-overlay') ||
+        target.hasAttribute('data-loop-inspector-popup') ||
+        target.hasAttribute('data-loop-inspector-marker') ||
+        target.hasAttribute('data-loop-inspector-open-button') ||
+        target.closest('[data-loop-inspector-panel]') ||
+        target.closest('[data-loop-inspector-sidebar]') ||
+        target.closest('[data-loop-inspector-popup]') ||
+        target.closest('[data-loop-inspector-marker]')
       ) {
         return;
       }
@@ -67,7 +75,15 @@ export function useInspector({
       if (
         target.hasAttribute('data-loop-inspector-highlight') ||
         target.hasAttribute('data-loop-inspector-panel') ||
-        target.closest('[data-loop-inspector-panel]')
+        target.hasAttribute('data-loop-inspector-sidebar') ||
+        target.hasAttribute('data-loop-inspector-request-overlay') ||
+        target.hasAttribute('data-loop-inspector-popup') ||
+        target.hasAttribute('data-loop-inspector-marker') ||
+        target.hasAttribute('data-loop-inspector-open-button') ||
+        target.closest('[data-loop-inspector-panel]') ||
+        target.closest('[data-loop-inspector-sidebar]') ||
+        target.closest('[data-loop-inspector-popup]') ||
+        target.closest('[data-loop-inspector-marker]')
       ) {
         return;
       }
