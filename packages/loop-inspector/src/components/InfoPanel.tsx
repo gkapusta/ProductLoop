@@ -2,9 +2,11 @@ import type { ElementInfo } from '../types';
 
 interface InfoPanelProps {
   elementInfo: ElementInfo | null;
-  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'cursor';
   zIndex?: number;
   onClose?: () => void;
+  cursorX?: number;
+  cursorY?: number;
 }
 
 export function InfoPanel({
@@ -12,6 +14,8 @@ export function InfoPanel({
   position = 'top-right',
   zIndex = 1000000,
   onClose,
+  cursorX = 0,
+  cursorY = 0,
 }: InfoPanelProps) {
   if (!elementInfo) {
     return null;
@@ -22,6 +26,10 @@ export function InfoPanel({
     'top-right': { top: 16, right: 16 },
     'bottom-left': { bottom: 16, left: 16 },
     'bottom-right': { bottom: 16, right: 16 },
+    'cursor': {
+      top: cursorY + 20,
+      left: cursorX + 20,
+    },
   };
 
   const baseStyle: React.CSSProperties = {
@@ -37,6 +45,7 @@ export function InfoPanel({
     fontSize: '12px',
     maxWidth: '400px',
     minWidth: '300px',
+    pointerEvents: position === 'cursor' ? 'none' : 'auto',
   };
 
   const headerStyle: React.CSSProperties = {
