@@ -1,30 +1,82 @@
-import { useState, useEffect } from 'react';
-import type { InspectorConfig, Request, ElementInfo } from '../types';
-import { useInspector } from '../hooks/useInspector';
-import { extractElementInfo, findNearestTaggedElement, getComponentId } from '../utils';
-import { Highlighter } from './Highlighter';
-import { InfoPanel } from './InfoPanel';
-import { RequestPopup } from './RequestPopup';
-import { CollabSidebar } from './CollabSidebar';
-import { authClient } from '../lib/auth-client';
+import {useEffect, useState} from 'react';
+import type {ElementInfo, InspectorConfig, Request} from '../types';
+import {useInspector} from '../hooks/useInspector';
+import {extractElementInfo, findNearestTaggedElement, getComponentId} from '../utils';
+import {Highlighter} from './Highlighter';
+import {InfoPanel} from './InfoPanel';
+import {RequestPopup} from './RequestPopup';
+import {CollabSidebar} from './CollabSidebar';
+import {authClient} from '../lib/auth-client';
+import {QueryClientProvider, useQuery} from '@tanstack/react-query';
+import {orpc, queryClient} from '../utils/orpc';
 
-export function Inspector({
-  enabled: initialEnabled = true,
-  attributePrefix = 'data-dev',
-  highlightColor = 'rgba(66, 153, 225, 0.5)',
-  zIndex = 999999,
-  onElementSelect,
-  currentRole: initialRole = 'PM',
-  onRequestCreate,
-  onRequestUpdate,
-}: InspectorConfig) {
+function InspectorCore({
+                         enabled: initialEnabled = true,
+                         attributePrefix = 'data-dev',
+                         highlightColor = 'rgba(66, 153, 225, 0.5)',
+                         zIndex = 999999,
+                         onElementSelect,
+                         currentRole: initialRole = 'designer',
+                         onRequestCreate,
+                         onRequestUpdate,
+                       }: InspectorConfig) {
   const [isEnabled] = useState(initialEnabled);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(0);
   const [requestMode, setRequestMode] = useState(false);
   const [currentRole, setCurrentRole] = useState(initialRole);
   const [requests, setRequests] = useState<Request[]>([]);
-  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number }>({x: 0, y: 0});
+
+  // Fetch product requests from API
+  const {data: productRequestsData, refetch: refetchRequests} = useQuery(
+    orpc.productRequest.list.queryOptions({
+      input: {
+        limit: 50,
+        offset:
+          0,
+      }
+    })
+  );
+
+  // Sync fetched requests with local state
+  useEffect(() => {
+    if (productRequestsData?.requests) {
+      const transformedRequests: Request[] = productRequestsData.requests.map((pr) => ({
+        id: pr.id,
+        x: pr.positionX || 0,
+        y: pr.positionY || 0,
+        width: pr.width || undefined,
+        height: pr.height || undefined,
+        elementInfo: pr.elementId ? {
+          id: pr.elementId,
+          name: pr.elementName || '',
+          path: pr.elementPath || '',
+          line: pr.elementLine || '',
+          file: pr.elementFile || '',
+          component: pr.elementComponent || '',
+          metadata: pr.elementMetadata ? JSON.stringify(pr.elementMetadata) : undefined,
+          element: document.body, // Placeholder since we don't have the actual element
+          x: pr.positionX || undefined,
+          y: pr.positionY || undefined,
+          width: pr.width || undefined,
+          height: pr.height || undefined,
+        } : undefined,
+        componentId: pr.elementId || undefined,
+        title: pr.title,
+        description: pr.description,
+        priority: pr.priority as 'low' | 'medium' | 'high',
+        author: pr.createdBy,
+        authorRole: 'designer', // Default, could be enhanced with user lookup
+        assignee: pr.assignedTo || 'All',
+        timestamp: new Date(pr.createdAt).toLocaleString(),
+        status: pr.status === 'open' ? 'pending' : pr.status === 'in_progress' ? 'in-review' : 'approved',
+        chatHistory: [],
+        requestSpec: pr.description,
+      }));
+      setRequests(transformedRequests);
+    }
+  }, [productRequestsData]);
 
   // Request mode selection state
   const [isDragging, setIsDragging] = useState(false);
@@ -32,12 +84,12 @@ export function Inspector({
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
   const [showRequestPopup, setShowRequestPopup] = useState(false);
   const [selectedElementForRequest, setSelectedElementForRequest] = useState<ElementInfo | null>(null);
-  const [requestPopupPosition, setRequestPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [requestPopupPosition, setRequestPopupPosition] = useState<{ x: number; y: number }>({x: 0, y: 0});
 
   // Use Better Auth session hook
-  const { data: session } = authClient.useSession();
+  const {data: session} = authClient.useSession();
 
-  const { hoveredElement, hoveredInfo, clearSelection } = useInspector({
+  const {hoveredElement, hoveredInfo, clearSelection} = useInspector({
     enabled: isEnabled && requestMode,
     attributePrefix,
     onElementSelect: onElementSelect ? (info) => {
@@ -75,7 +127,7 @@ export function Inspector({
     if (!requestMode) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      setCursorPosition({ x: e.clientX, y: e.clientY });
+      setCursorPosition({x: e.clientX, y: e.clientY});
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -103,7 +155,7 @@ export function Inspector({
     const x = e.clientX;
     const y = e.clientY;
 
-    setDragStart({ x, y });
+    setDragStart({x, y});
     setIsDragging(true);
   };
 
@@ -113,7 +165,7 @@ export function Inspector({
     const x = e.clientX;
     const y = e.clientY;
 
-    setDragEnd({ x, y });
+    setDragEnd({x, y});
   };
 
   const handleRequestModeMouseUp = (e: MouseEvent) => {
@@ -173,7 +225,7 @@ export function Inspector({
     }
 
     setSelectedElementForRequest(elementInfo);
-    setRequestPopupPosition({ x: endX, y: endY });
+    setRequestPopupPosition({x: endX, y: endY});
     setShowRequestPopup(true);
     setIsDragging(false);
     setDragStart(null);
@@ -217,7 +269,7 @@ export function Inspector({
 
     // Get user info from session or use fallback
     const userName = session?.user?.name || session?.user?.email ||
-      (currentRole === 'PM' ? 'Sarah Chen' : currentRole === 'Designer' ? 'Alex Kim' : 'Mike Ross');
+      (currentRole === 'product-manager' ? 'Sarah Chen' : currentRole === 'designer' ? 'Alex Kim' : 'Mike Ross');
 
     const roleMap: Record<string, string> = {
       'product_manager': 'PM',
@@ -269,7 +321,7 @@ export function Inspector({
     setRequests((prev) =>
       prev.map((r) => {
         if (r.id === requestId) {
-          const updated = { ...r, assignee: sendTo, status: 'in-review' as const };
+          const updated = {...r, assignee: sendTo, status: 'in-review' as const};
           onRequestUpdate?.(updated);
           return updated;
         }
@@ -308,7 +360,7 @@ export function Inspector({
     setRequests((prev) =>
       prev.map((r) => {
         if (r.id === requestId) {
-          const updated = { ...r, priority };
+          const updated = {...r, priority};
           onRequestUpdate?.(updated);
           return updated;
         }
@@ -327,11 +379,11 @@ export function Inspector({
   const selectionBox =
     isDragging && dragStart && dragEnd && requestMode
       ? {
-          left: Math.min(dragStart.x, dragEnd.x),
-          top: Math.min(dragStart.y, dragEnd.y),
-          width: Math.abs(dragEnd.x - dragStart.x),
-          height: Math.abs(dragEnd.y - dragStart.y),
-        }
+        left: Math.min(dragStart.x, dragEnd.x),
+        top: Math.min(dragStart.y, dragEnd.y),
+        width: Math.abs(dragEnd.x - dragStart.x),
+        height: Math.abs(dragEnd.y - dragStart.y),
+      }
       : null;
 
   return (
@@ -384,7 +436,7 @@ export function Inspector({
 
       {isEnabled && requestMode && !showRequestPopup && (
         <>
-          <Highlighter targetElement={hoveredElement} color={highlightColor} zIndex={zIndex} />
+          <Highlighter targetElement={hoveredElement} color={highlightColor} zIndex={zIndex}/>
           <InfoPanel
             elementInfo={hoveredInfo}
             position="cursor"
@@ -405,7 +457,8 @@ export function Inspector({
         }}
         currentRole={currentRole}
         onRoleChange={setCurrentRole}
-        onRequestClick={() => {}}
+        onRequestClick={() => {
+        }}
         onFinalizeRequest={handleFinalizeRequest}
         onSendMessage={handleSendMessage}
         onPriorityChange={handlePriorityChange}
@@ -469,5 +522,14 @@ export function Inspector({
         </button>
       )}
     </>
+  );
+}
+
+// Wrap Inspector with QueryClientProvider
+export function Inspector(props: InspectorConfig) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <InspectorCore {...props} />
+    </QueryClientProvider>
   );
 }

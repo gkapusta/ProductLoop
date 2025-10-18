@@ -1,26 +1,59 @@
-import React, { useState } from 'react';
-import type { ElementInfo } from '../types';
+import React, {useState} from 'react';
+import type {ElementInfo} from '../types';
+import {orpc} from "../utils/orpc";
+import {useMutation} from "@tanstack/react-query";
+
+type RequestType = 'feature' | 'bug' | 'improvement' | 'idea';
+type Priority = 'low' | 'medium' | 'high' | 'critical';
+
+interface CreateRequestInput {
+  title: string;
+  description: string;
+  type: RequestType;
+  priority?: Priority;
+  elementInfo?: {
+    elementId?: string;
+    elementName?: string;
+    elementPath?: string;
+    elementLine?: string;
+    elementFile?: string;
+    elementComponent?: string;
+    elementMetadata?: Record<string, unknown>;
+    positionX?: number;
+    positionY?: number;
+    width?: number;
+    height?: number;
+  };
+  screenshotUrl?: string;
+  pageUrl?: string;
+}
 
 interface RequestPopupProps {
   elementInfo: ElementInfo;
   position: { x: number; y: number };
-  currentRole: 'PM' | 'Designer' | 'Developer';
+  currentRole?: 'product-manager' | 'designer' | 'developer';
   onClose: () => void;
-  onSave: (data: { title: string; description: string }) => void;
+  onSave?: (data: CreateRequestInput) => Promise<void>;
   zIndex?: number;
 }
 
-export function RequestPopup({
-  elementInfo,
-  position,
-  currentRole,
-  onClose,
-  onSave,
-  zIndex = 1000001,
-}: RequestPopupProps) {
+export function RequestPopup(
+  {
+    elementInfo,
+    position,
+    currentRole = 'designer',
+    onClose,
+    onSave,
+    zIndex = 1000001,
+  }: RequestPopupProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [requestType, setRequestType] = useState<RequestType>('feature');
+  const [priority, setPriority] = useState<Priority>('medium');
   const [isRephrasing, setIsRephrasing] = useState<'title' | 'description' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const {mutateAsync: createRequest, isPending: isSaving} = useMutation(orpc.productRequest.create.mutationOptions());
 
   // Position popup intelligently to avoid going off-screen
   const popupStyle: React.CSSProperties = {
@@ -56,15 +89,48 @@ export function RequestPopup({
     }, 1000);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim() || !description.trim()) {
       return;
     }
 
-    onSave({
-      title,
-      description,
-    });
+    setError(null);
+
+    try {
+      const requestData: CreateRequestInput = {
+        title: title.trim(),
+        description: description.trim(),
+        type: requestType,
+        priority,
+        elementInfo: {
+          elementId: elementInfo.id,
+          elementName: elementInfo.name,
+          elementPath: elementInfo.path,
+          elementLine: elementInfo.line,
+          elementFile: elementInfo.file,
+          elementComponent: elementInfo.component,
+          elementMetadata: elementInfo.metadata ? JSON.parse(elementInfo.metadata) : undefined,
+          positionX: elementInfo.x,
+          positionY: elementInfo.y,
+          width: elementInfo.width,
+          height: elementInfo.height,
+        },
+        pageUrl: window.location.href,
+      };
+
+      // Use oRPC mutation to create request
+      await createRequest(requestData);
+
+      // Call onSave callback if provided (for additional handling)
+      if (onSave) {
+        await onSave(requestData);
+      }
+
+      // Close popup on success
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save request');
+    }
   };
 
   return (
@@ -94,8 +160,8 @@ export function RequestPopup({
             borderBottom: '1px solid #2d3748',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>New Request</h3>
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+            <h3 style={{fontSize: '16px', fontWeight: '600', margin: 0}}>New Request</h3>
             <button
               onClick={onClose}
               style={{
@@ -117,7 +183,7 @@ export function RequestPopup({
               ×
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px'}}>
             <span
               style={{
                 display: 'inline-block',
@@ -126,22 +192,77 @@ export function RequestPopup({
                 borderRadius: '4px',
                 fontSize: '11px',
                 fontWeight: '500',
+                textTransform: 'capitalize',
               }}
             >
-              {currentRole}
+              {currentRole.replace('_', ' ')}
             </span>
-            <span style={{ fontSize: '11px', color: '#718096' }}>
+            <span style={{fontSize: '11px', color: '#718096'}}>
               {elementInfo.name} • {elementInfo.width ? 'Area selected' : 'Point selected'}
             </span>
           </div>
         </div>
 
         {/* Content */}
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px'}}>
+          {/* Request Type and Priority */}
+          <div style={{display: 'flex', gap: '12px'}}>
+            <div style={{flex: 1}}>
+              <label style={{fontSize: '13px', fontWeight: '500', display: 'block', marginBottom: '8px'}}>
+                Type
+              </label>
+              <select
+                value={requestType}
+                onChange={(e) => setRequestType(e.target.value as RequestType)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: '#2d3748',
+                  border: '1px solid #4a5568',
+                  borderRadius: '6px',
+                  color: '#e2e8f0',
+                  fontSize: '14px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="feature">Feature</option>
+                <option value="bug">Bug</option>
+                <option value="improvement">Improvement</option>
+                <option value="idea">Idea</option>
+              </select>
+            </div>
+            <div style={{flex: 1}}>
+              <label style={{fontSize: '13px', fontWeight: '500', display: 'block', marginBottom: '8px'}}>
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Priority)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: '#2d3748',
+                  border: '1px solid #4a5568',
+                  borderRadius: '6px',
+                  color: '#e2e8f0',
+                  fontSize: '14px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+
           {/* Title Field */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '500' }}>Title</label>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+              <label style={{fontSize: '13px', fontWeight: '500'}}>Title</label>
               <button
                 onClick={() => handleRephrase('title')}
                 disabled={isRephrasing === 'title'}
@@ -188,8 +309,8 @@ export function RequestPopup({
 
           {/* Description Field */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '500' }}>Brief Intro / Description</label>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+              <label style={{fontSize: '13px', fontWeight: '500'}}>Brief Intro / Description</label>
               <button
                 onClick={() => handleRephrase('description')}
                 disabled={isRephrasing === 'description'}
@@ -236,34 +357,50 @@ export function RequestPopup({
             />
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div
+              style={{
+                padding: '10px 12px',
+                backgroundColor: '#742a2a',
+                border: '1px solid #fc8181',
+                borderRadius: '6px',
+                color: '#fed7d7',
+                fontSize: '13px',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
           {/* Save Button */}
           <button
             onClick={handleSave}
-            disabled={!title.trim() || !description.trim()}
+            disabled={!title.trim() || !description.trim() || isSaving}
             style={{
               width: '100%',
               padding: '10px 20px',
-              backgroundColor: !title.trim() || !description.trim() ? '#4a5568' : '#9f7aea',
+              backgroundColor: !title.trim() || !description.trim() || isSaving ? '#4a5568' : '#9f7aea',
               border: 'none',
               borderRadius: '6px',
               color: 'white',
               fontSize: '14px',
               fontWeight: '500',
-              cursor: !title.trim() || !description.trim() ? 'not-allowed' : 'pointer',
-              opacity: !title.trim() || !description.trim() ? 0.5 : 1,
+              cursor: !title.trim() || !description.trim() || isSaving ? 'not-allowed' : 'pointer',
+              opacity: !title.trim() || !description.trim() || isSaving ? 0.5 : 1,
             }}
             onMouseEnter={(e) => {
-              if (title.trim() && description.trim()) {
+              if (title.trim() && description.trim() && !isSaving) {
                 e.currentTarget.style.backgroundColor = '#805ad5';
               }
             }}
             onMouseLeave={(e) => {
-              if (title.trim() && description.trim()) {
+              if (title.trim() && description.trim() && !isSaving) {
                 e.currentTarget.style.backgroundColor = '#9f7aea';
               }
             }}
           >
-            Save Request
+            {isSaving ? 'Saving...' : 'Save Request'}
           </button>
         </div>
       </div>

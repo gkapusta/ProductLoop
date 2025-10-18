@@ -30,7 +30,7 @@ export interface Request {
   description?: string;
   priority: 'low' | 'medium' | 'high';
   author: string;
-  authorRole: 'PM' | 'Designer' | 'Developer';
+  authorRole: 'product-manager' | 'designer' | 'developer';
   assignee: string;
   timestamp: string;
   status: 'pending' | 'in-review' | 'approved' | 'rejected';
@@ -46,7 +46,7 @@ export interface InspectorConfig {
   overlayPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   zIndex?: number;
   onElementSelect?: (info: ElementInfo) => void;
-  currentRole?: 'PM' | 'Designer' | 'Developer';
+  currentRole?: 'product-manager' | 'designer' | 'developer';
   onRequestCreate?: (request: Request) => void;
   onRequestUpdate?: (request: Request) => void;
 }

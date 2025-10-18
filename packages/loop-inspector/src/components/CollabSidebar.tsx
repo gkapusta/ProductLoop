@@ -7,8 +7,8 @@ interface CollabSidebarProps {
   requests: Request[];
   isOpen: boolean;
   onClose: () => void;
-  currentRole: 'PM' | 'Designer' | 'Developer';
-  onRoleChange: (role: 'PM' | 'Designer' | 'Developer') => void;
+  currentRole: 'product-manager' | 'designer' | 'developer';
+  onRoleChange: (role: 'product-manager' | 'designer' | 'developer') => void;
   onRequestClick: (requestId: string) => void;
   onFinalizeRequest: (requestId: string, sendTo: string) => void;
   onSendMessage: (requestId: string, message: string) => void;
