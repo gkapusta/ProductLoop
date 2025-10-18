@@ -7,6 +7,13 @@ import Loader from "./loader";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "./ui/select";
 
 export default function SignUpForm({
 	onSwitchToSignIn,
@@ -23,6 +30,7 @@ export default function SignUpForm({
 			email: "",
 			password: "",
 			name: "",
+			type: "",
 		},
 		onSubmit: async ({ value }) => {
 			await authClient.signUp.email(
@@ -30,6 +38,7 @@ export default function SignUpForm({
 					email: value.email,
 					password: value.password,
 					name: value.name,
+					type: value.type,
 				},
 				{
 					onSuccess: () => {
@@ -49,6 +58,7 @@ export default function SignUpForm({
 				name: z.string().min(2, "Name must be at least 2 characters"),
 				email: z.email("Invalid email address"),
 				password: z.string().min(8, "Password must be at least 8 characters"),
+				type: z.string().min(1, "Please select a role"),
 			}),
 		},
 	});
@@ -127,6 +137,39 @@ export default function SignUpForm({
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
 								/>
+								{field.state.meta.errors.map((error) => (
+									<p key={error?.message} className="text-red-500">
+										{error?.message}
+									</p>
+								))}
+							</div>
+						)}
+					</form.Field>
+				</div>
+
+				<div>
+					<form.Field name="type">
+						{(field) => (
+							<div className="space-y-2">
+								<Label htmlFor={field.name}>Role</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={(value: string) => field.handleChange(value)}
+								>
+									<SelectTrigger id={field.name}>
+										<SelectValue placeholder="Select your role" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="product_manager">
+											Product Manager
+										</SelectItem>
+										<SelectItem value="designer">Designer</SelectItem>
+										<SelectItem value="developer">Developer</SelectItem>
+										<SelectItem value="qa_engineer">QA Engineer</SelectItem>
+										<SelectItem value="stakeholder">Stakeholder</SelectItem>
+										<SelectItem value="other">Other</SelectItem>
+									</SelectContent>
+								</Select>
 								{field.state.meta.errors.map((error) => (
 									<p key={error?.message} className="text-red-500">
 										{error?.message}
