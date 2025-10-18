@@ -9,6 +9,7 @@ export const auth = betterAuth({
 
 		schema: schema,
 	}),
+	baseURL: "https://localhost:12345/api/v1/auth",
 	trustedOrigins: [process.env.CORS_ORIGIN || ""],
 	emailAndPassword: {
 		enabled: true,

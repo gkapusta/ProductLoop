@@ -1,0 +1,19 @@
+{
+  "name": "local-dev",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open https://localhost:12345/"
+  },
+  "dependencies": {
+    "api": "workspace:*",
+    "dashboard": "workspace:*",
+    "demo": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "vite": "^5.4.10",
+    "vite-plugin-mkcert": "^1.17.6"
+  }
+}
