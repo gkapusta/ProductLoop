@@ -1,0 +1,182 @@
+# .github/workflows/auto-release.yml
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Run linter
+        run: pnpm run lint || echo "No lint script"
+
+      - name: Build package
+        run: pnpm run build
+
+      - name: Check package
+        run: pnpm pack && rm -f *.tgz
+
+  auto-release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: pnpm run build
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          # Get the last commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+
+          # Determine bump type based on commit message
+          if echo "$COMMIT_MSG" | grep -iq "BREAKING CHANGE\|major:"; then
+            echo "type=major" >> $GITHUB_OUTPUT
+            echo "Detected MAJOR version bump"
+          elif echo "$COMMIT_MSG" | grep -iq "feat:\|feature:\|minor:"; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+            echo "Detected MINOR version bump"
+          else
+            echo "type=patch" >> $GITHUB_OUTPUT
+            echo "Detected PATCH version bump"
+          fi
+
+      - name: Check if version already bumped
+        id: check_version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Check if tag already exists
+          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+            echo "Tag v$CURRENT_VERSION already exists"
+            echo "needs_bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag v$CURRENT_VERSION does not exist"
+            echo "needs_bump=false" >> $GITHUB_OUTPUT
+            echo "VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          fi
+
+      - name: Bump version in package.json
+        if: steps.check_version.outputs.needs_bump == 'true'
+        run: |
+          pnpm version ${{ steps.bump_type.outputs.type }} -m "chore: release v%s [skip ci]"
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "Bumped to version $NEW_VERSION"
+
+      - name: Push version bump commit
+        if: steps.check_version.outputs.needs_bump == 'true'
+        run: |
+          git push origin main
+
+      - name: Create and push tag
+        run: |
+          git tag v${{ env.VERSION }}
+          git push origin v${{ env.VERSION }}
+          echo "Created and pushed tag v${{ env.VERSION }}"
+
+      - name: Generate changelog and update file
+        run: |
+          # Install changelog generator
+          npm install -g auto-changelog
+
+          # Generate changelog content using the custom template
+          auto-changelog --stdout --commit-limit false -u --template ".github/changelog-template.hbs" --starting-version ${{ env.VERSION }} --issue-url "https://github.com/canadianeagle/vite-plugin-component-debugger/issues/{id}" > new-changelog-entry.md
+
+          # Prepare the new changelog entry
+          # The output from auto-changelog includes the version header, so we can use it directly
+
+          # Read the existing changelog
+          EXISTING_CHANGELOG=$(cat changelog.md)
+
+          # Create the new changelog content
+          # The header is already in new-changelog-entry.md
+          # We need to remove the old header from the existing changelog
+          # This is a simple way to do it, might need adjustment based on your changelog format
+          UPDATED_CHANGELOG=$(echo -e "$(cat new-changelog-entry.md)\n\n$(echo "$EXISTING_CHANGELOG" | sed '1,7d')")
+
+          # Write the updated changelog
+          echo "$UPDATED_CHANGELOG" > changelog.md
+
+          # Also create release notes for the GitHub Release
+          cp changelog.md release-notes.md
+
+          # Commit the updated changelog
+          git add changelog.md
+          git commit -m "chore: update changelog for v${{ env.VERSION }} [skip ci]"
+          git push origin main
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.VERSION }}
+          release_name: v${{ env.VERSION }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+
+      - name: Publish to NPM
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Success notification
+        run: |
+          echo "🎉 Successfully released v${{ env.VERSION }}"
+          echo "📦 NPM: https://www.npmjs.com/package/vite-plugin-component-debugger"
+          echo "🏷️ GitHub: ${{ steps.create_release.outputs.html_url }}"
