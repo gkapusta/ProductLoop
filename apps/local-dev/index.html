@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virbe.ai - DEV</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .info-links {
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .info-links a {
+            text-decoration: none;
+            color: #6B4EFF;
+            background-color: #f5f5ff;
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin: 0 5px;
+            display: inline-block;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+
+        .info-links a:hover {
+            background-color: #E0DAFF;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 20px 0;
+            line-height: 1.2;
+        }
+
+        p {
+            font-size: 1rem;
+            color: #666666;
+            margin: 20px 0;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .button-container a {
+            text-decoration: none;
+            padding: 12px 30px;
+            font-size: 1rem;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .demo-button {
+            border: 2px solid #333333;
+            color: #333333;
+            background-color: transparent;
+        }
+
+        .demo-button:hover {
+            background-color: #f4f4f4;
+        }
+
+        .join-button {
+            background-color: #333333;
+            color: white;
+        }
+
+        .join-button:hover {
+            background-color: #555555;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="info-links">
+            <a href="https://gitlab.com/virbe">gitlab.com</a>
+            <a href="https://app.clickup.com/">clickup.com</a>
+        </div>
+        <h1>Local dev</h1>
+        <p>To obtain the access key for this domain, please log in to the dashboard.</p>
+        <div class="button-container">
+            <a href="https://localhost:12345/dashboard/" class="demo-button">Dashboard</a>
+            <a href="https://localhost:12345/demo/" class="demo-button">Demo</a>
+        </div>
+    </div>
+</body>
+
+</html>
