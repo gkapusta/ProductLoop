@@ -11,6 +11,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@product-loop/tagger": "workspace:*",
+    "@product-loop/inspector": "workspace:*",
     "@hookform/resolvers": "^5.1.1",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
