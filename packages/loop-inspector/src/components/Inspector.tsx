@@ -6,6 +6,7 @@ import { Highlighter } from './Highlighter';
 import { InfoPanel } from './InfoPanel';
 import { RequestPopup } from './RequestPopup';
 import { CollabSidebar } from './CollabSidebar';
+import { authClient } from '../lib/auth-client';
 
 export function Inspector({
   enabled: initialEnabled = true,
@@ -32,6 +33,9 @@ export function Inspector({
   const [showRequestPopup, setShowRequestPopup] = useState(false);
   const [selectedElementForRequest, setSelectedElementForRequest] = useState<ElementInfo | null>(null);
   const [requestPopupPosition, setRequestPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Use Better Auth session hook
+  const { data: session } = authClient.useSession();
 
   const { hoveredElement, hoveredInfo, clearSelection } = useInspector({
     enabled: isEnabled && requestMode,
@@ -211,6 +215,18 @@ export function Inspector({
   const handleRequestSave = (data: { title: string; description: string }) => {
     if (!selectedElementForRequest) return;
 
+    // Get user info from session or use fallback
+    const userName = session?.user?.name || session?.user?.email ||
+      (currentRole === 'PM' ? 'Sarah Chen' : currentRole === 'Designer' ? 'Alex Kim' : 'Mike Ross');
+
+    const roleMap: Record<string, string> = {
+      'product_manager': 'PM',
+      'designer': 'Designer',
+      'developer': 'Developer',
+    };
+    const userType = (session?.user as any)?.type;
+    const userRole = (userType && roleMap[userType]) || currentRole;
+
     const newRequest: Request = {
       id: Date.now().toString(),
       x: selectedElementForRequest.x || 0,
@@ -222,8 +238,8 @@ export function Inspector({
       title: data.title,
       description: data.description,
       priority: 'medium',
-      author: currentRole === 'PM' ? 'Sarah Chen' : currentRole === 'Designer' ? 'Alex Kim' : 'Mike Ross',
-      authorRole: currentRole,
+      author: userName,
+      authorRole: userRole,
       assignee: 'All',
       timestamp: 'Just now',
       status: 'pending',
@@ -366,7 +382,7 @@ export function Inspector({
         />
       )}
 
-      {isEnabled && requestMode && (
+      {isEnabled && requestMode && !showRequestPopup && (
         <>
           <Highlighter targetElement={hoveredElement} color={highlightColor} zIndex={zIndex} />
           <InfoPanel

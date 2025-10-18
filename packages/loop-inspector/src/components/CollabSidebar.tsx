@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Request } from '../types';
+import { authClient } from '../lib/auth-client';
+import { LoginDialog } from './LoginDialog';
 
 interface CollabSidebarProps {
   requests: Request[];
@@ -41,6 +43,17 @@ export function CollabSidebar({
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [sendToUser, setSendToUser] = useState('');
   const [messageInput, setMessageInput] = useState('');
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+
+  // Use Better Auth session hook
+  const { data: session, isPending } = authClient.useSession();
+
+  // Check authentication when sidebar opens
+  useEffect(() => {
+    if (isOpen && !isPending && !session) {
+      setShowLoginDialog(true);
+    }
+  }, [isOpen, session, isPending]);
 
   // Handle resize
   useEffect(() => {
@@ -113,10 +126,49 @@ export function CollabSidebar({
     setSendToUser('');
   };
 
+  const handleLoginSuccess = () => {
+    setShowLoginDialog(false);
+  };
+
+  const handleSignOut = async () => {
+    await authClient.signOut();
+    setShowRoleDropdown(false);
+  };
+
+  // Get user display name and role
+  const getUserInfo = () => {
+    if (!session?.user) {
+      return { name: 'Guest', role: currentRole, initial: 'G' };
+    }
+
+    const name = session.user.name || session.user.email || 'User';
+    const roleMap: Record<string, string> = {
+      'product_manager': 'PM',
+      'designer': 'Designer',
+      'developer': 'Developer',
+    };
+    const userType = (session.user as any)?.type;
+    const role = (userType && roleMap[userType]) || currentRole;
+    const initial = (name && name[0]?.toUpperCase()) || 'U';
+
+    return { name, role, initial };
+  };
+
+  const userInfo = getUserInfo();
+
   if (!isOpen) return null;
 
   return (
     <>
+      {/* Login Dialog */}
+      {showLoginDialog && (
+        <LoginDialog
+          onClose={() => setShowLoginDialog(false)}
+          onLoginSuccess={handleLoginSuccess}
+          zIndex={zIndex + 20}
+        />
+      )}
+
       {/* Finalize Modal */}
       {showFinalizeModal && selectedRequest && (
         <>
@@ -381,7 +433,7 @@ export function CollabSidebar({
             >
               ×
             </button>
-            {/* Role Switcher */}
+            {/* User Profile */}
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowRoleDropdown(!showRoleDropdown)}
@@ -417,7 +469,7 @@ export function CollabSidebar({
                     fontWeight: '600',
                   }}
                 >
-                  {currentRole[0]}
+                  {userInfo.initial}
                 </div>
                 <span
                   style={{
@@ -428,7 +480,7 @@ export function CollabSidebar({
                     fontWeight: '500',
                   }}
                 >
-                  {currentRole}
+                  {userInfo.role}
                 </span>
               </button>
 
@@ -453,17 +505,23 @@ export function CollabSidebar({
                       borderRadius: '6px',
                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                       zIndex: 2,
-                      minWidth: '180px',
+                      minWidth: '200px',
                     }}
                   >
-                    <div style={{ padding: '8px 0' }}>
-                      {(['PM', 'Designer', 'Developer'] as const).map((role) => (
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d3748' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '2px' }}>
+                        {userInfo.name}
+                      </div>
+                      {session?.user?.email && (
+                        <div style={{ fontSize: '11px', color: '#718096' }}>
+                          {session.user.email}
+                        </div>
+                      )}
+                    </div>
+                    {session ? (
+                      <div style={{ padding: '8px 0' }}>
                         <button
-                          key={role}
-                          onClick={() => {
-                            onRoleChange(role);
-                            setShowRoleDropdown(false);
-                          }}
+                          onClick={handleSignOut}
                           style={{
                             width: '100%',
                             padding: '10px 16px',
@@ -481,10 +539,40 @@ export function CollabSidebar({
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }}
                         >
-                          {role === 'PM' ? 'Product Manager' : role}
+                          Sign Out
                         </button>
-                      ))}
-                    </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '8px 0' }}>
+                        {(['PM', 'Designer', 'Developer'] as const).map((role) => (
+                          <button
+                            key={role}
+                            onClick={() => {
+                              onRoleChange(role);
+                              setShowRoleDropdown(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '10px 16px',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              color: '#e2e8f0',
+                              fontSize: '13px',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#2d3748';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            {role === 'PM' ? 'Product Manager' : role}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
