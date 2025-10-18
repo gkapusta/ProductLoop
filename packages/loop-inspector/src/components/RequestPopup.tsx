@@ -1,7 +1,8 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import type {ElementInfo} from '../types';
 import {orpc} from "../utils/orpc";
 import {useMutation} from "@tanstack/react-query";
+import { createAIAgent, type AIAgent } from '../lib/ai-agent';
 
 type RequestType = 'feature' | 'bug' | 'improvement' | 'idea';
 type Priority = 'low' | 'medium' | 'high' | 'critical';
@@ -48,9 +49,26 @@ export function RequestPopup(
   }: RequestPopupProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [aiAgent, setAiAgent] = useState<AIAgent | null>(null);
+
+  // Initialize AI agent if role is PM or Designer
+  useEffect(() => {
+    if (currentRole === 'product-manager' || currentRole === 'designer') {
+      const agent = createAIAgent({
+        role: currentRole,
+        componentId: elementInfo.component,
+        requestTitle: title,
+        requestDescription: description,
+      });
+      setAiAgent(agent);
+    } else {
+      setAiAgent(null);
+    }
+  }, [currentRole, elementInfo.component]);
+
   const [requestType, setRequestType] = useState<RequestType>('feature');
   const [priority, setPriority] = useState<Priority>('medium');
-  const [isRephrasing, setIsRephrasing] = useState<'title' | 'description' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const {mutateAsync: createRequest, isPending: isSaving} = useMutation(orpc.productRequest.create.mutationOptions());
@@ -69,24 +87,25 @@ export function RequestPopup(
     border: '1px solid #2d3748',
   };
 
-  const handleRephrase = async (field: 'title' | 'description') => {
-    const content = field === 'title' ? title : description;
-    if (!content.trim()) {
+  const handleGenerateDescription = async () => {
+    if (!title.trim() || !aiAgent) {
       return;
     }
 
-    setIsRephrasing(field);
+    setIsGeneratingDescription(true);
 
-    // Simulate AI rephrasing (in production, this would call an API)
-    setTimeout(() => {
-      const rephrased = `[Improved by AI] ${content}`;
-      if (field === 'title') {
-        setTitle(rephrased);
-      } else {
-        setDescription(rephrased);
-      }
-      setIsRephrasing(null);
-    }, 1000);
+    try {
+      // Generate a brief description based on the title
+      const prompt = `Based on this request title: "${title}", generate a brief but clear description of what should be done. Focus on making it actionable and concise (2-3 sentences). Only return the description, nothing else.`;
+
+      const generatedDescription = await aiAgent.sendMessage(prompt, []);
+      setDescription(generatedDescription.trim());
+    } catch (error) {
+      console.error('Error generating description:', error);
+      // Keep original content on error
+    } finally {
+      setIsGeneratingDescription(false);
+    }
   };
 
   const handleSave = async () => {
@@ -261,27 +280,7 @@ export function RequestPopup(
 
           {/* Title Field */}
           <div>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-              <label style={{fontSize: '13px', fontWeight: '500'}}>Title</label>
-              <button
-                onClick={() => handleRephrase('title')}
-                disabled={isRephrasing === 'title'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#9f7aea',
-                  fontSize: '11px',
-                  cursor: isRephrasing === 'title' ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  opacity: isRephrasing === 'title' ? 0.5 : 1,
-                }}
-              >
-                ✨ {isRephrasing === 'title' ? 'Rephrasing...' : 'AI Assist'}
-              </button>
-            </div>
+            <label style={{ fontSize: '13px', fontWeight: '500', marginBottom: '8px', display: 'block' }}>Title</label>
             <input
               type="text"
               value={title}
@@ -312,22 +311,22 @@ export function RequestPopup(
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
               <label style={{fontSize: '13px', fontWeight: '500'}}>Brief Intro / Description</label>
               <button
-                onClick={() => handleRephrase('description')}
-                disabled={isRephrasing === 'description'}
+                onClick={handleGenerateDescription}
+                disabled={isGeneratingDescription || !title.trim() || !aiAgent}
                 style={{
                   background: 'none',
                   border: 'none',
                   color: '#9f7aea',
                   fontSize: '11px',
-                  cursor: isRephrasing === 'description' ? 'not-allowed' : 'pointer',
+                  cursor: (isGeneratingDescription || !title.trim() || !aiAgent) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                   padding: '4px 8px',
-                  opacity: isRephrasing === 'description' ? 0.5 : 1,
+                  opacity: (isGeneratingDescription || !title.trim() || !aiAgent) ? 0.5 : 1,
                 }}
               >
-                ✨ {isRephrasing === 'description' ? 'Rephrasing...' : 'AI Assist'}
+                ✨ {isGeneratingDescription ? 'Generating...' : 'AI Assist'}
               </button>
             </div>
             <textarea

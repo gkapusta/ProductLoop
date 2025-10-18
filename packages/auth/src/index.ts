@@ -18,7 +18,7 @@ export const auth = betterAuth({
 		additionalFields: {
 			type: {
 				type: "string",
-				enum: ["product_manager","designer","developer"],
+				enum: ["product-manager","designer","developer"],
 				required: true,
 			}
 		},

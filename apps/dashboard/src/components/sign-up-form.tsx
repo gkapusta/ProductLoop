@@ -160,7 +160,7 @@ export default function SignUpForm({
 										<SelectValue placeholder="Select your role" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="product_manager">
+										<SelectItem value="product-manager">
 											Product Manager
 										</SelectItem>
 										<SelectItem value="designer">Designer</SelectItem>

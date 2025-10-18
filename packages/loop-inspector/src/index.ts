@@ -9,3 +9,5 @@ export { useInspector } from './hooks/useInspector';
 export type { ElementInfo, InspectorConfig, HighlightStyle, Request, ChatMessage } from './types';
 export { extractElementInfo, findNearestTaggedElement, getElementBounds, getComponentId } from './utils';
 export { authClient } from './lib/auth-client';
+export { createAIAgent, AIAgent } from './lib/ai-agent';
+export type { AgentContext } from './lib/ai-agent';

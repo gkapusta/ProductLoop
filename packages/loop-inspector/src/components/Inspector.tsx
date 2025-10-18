@@ -9,6 +9,7 @@ import {CollabSidebar} from './CollabSidebar';
 import {authClient} from '../lib/auth-client';
 import {QueryClientProvider, useQuery} from '@tanstack/react-query';
 import {orpc, queryClient} from '../utils/orpc';
+import { createAIAgent } from '../lib/ai-agent';
 
 function InspectorCore({
                          enabled: initialEnabled = true,
@@ -272,12 +273,24 @@ function InspectorCore({
       (currentRole === 'product-manager' ? 'Sarah Chen' : currentRole === 'designer' ? 'Alex Kim' : 'Mike Ross');
 
     const roleMap: Record<string, string> = {
-      'product_manager': 'PM',
+      'product-manager': 'PM',
       'designer': 'Designer',
       'developer': 'Developer',
     };
     const userType = (session?.user as any)?.type;
     const userRole = (userType && roleMap[userType]) || currentRole;
+
+    // Initialize AI agent to get initial greeting
+    let aiInitialMessage = 'Do you want me to help you refine this request further?';
+    if (userRole === 'PM' || userRole === 'Designer') {
+      const agent = createAIAgent({
+        role: userRole,
+        componentId: getComponentId(selectedElementForRequest),
+        requestTitle: data.title,
+        requestDescription: data.description,
+      });
+      aiInitialMessage = agent.getInitialMessage();
+    }
 
     const newRequest: Request = {
       id: Date.now().toString(),
@@ -302,7 +315,7 @@ function InspectorCore({
         },
         {
           role: 'assistant',
-          content: 'Do you want me to help you refine this request further?',
+          content: aiInitialMessage,
         },
       ],
       requestSpec: data.description,
@@ -330,7 +343,7 @@ function InspectorCore({
     );
   };
 
-  const handleSendMessage = (requestId: string, message: string) => {
+  const handleSendMessage = (requestId: string, message: string, aiResponse?: string) => {
     setRequests((prev) =>
       prev.map((r) => {
         if (r.id === requestId) {
@@ -344,7 +357,7 @@ function InspectorCore({
               },
               {
                 role: 'assistant' as const,
-                content: 'I understand. Let me help you refine this further...',
+                content: aiResponse || 'I understand. Let me help you refine this further...',
               },
             ],
           };
@@ -361,6 +374,19 @@ function InspectorCore({
       prev.map((r) => {
         if (r.id === requestId) {
           const updated = {...r, priority};
+          onRequestUpdate?.(updated);
+          return updated;
+        }
+        return r;
+      })
+    );
+  };
+
+  const handleRequestSpecUpdate = (requestId: string, requestSpec: string) => {
+    setRequests((prev) =>
+      prev.map((r) => {
+        if (r.id === requestId) {
+          const updated = { ...r, requestSpec };
           onRequestUpdate?.(updated);
           return updated;
         }
@@ -462,6 +488,7 @@ function InspectorCore({
         onFinalizeRequest={handleFinalizeRequest}
         onSendMessage={handleSendMessage}
         onPriorityChange={handlePriorityChange}
+        onRequestSpecUpdate={handleRequestSpecUpdate}
         onWidthChange={setSidebarWidth}
         zIndex={zIndex + 3}
         requestMode={requestMode}

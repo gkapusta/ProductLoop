@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Request } from '../types';
 import { authClient } from '../lib/auth-client';
 import { LoginDialog } from './LoginDialog';
+import { createAIAgent, type AIAgent } from '../lib/ai-agent';
 
 interface CollabSidebarProps {
   requests: Request[];
@@ -11,8 +12,9 @@ interface CollabSidebarProps {
   onRoleChange: (role: 'product-manager' | 'designer' | 'developer') => void;
   onRequestClick: (requestId: string) => void;
   onFinalizeRequest: (requestId: string, sendTo: string) => void;
-  onSendMessage: (requestId: string, message: string) => void;
+  onSendMessage: (requestId: string, message: string, aiResponse?: string) => void;
   onPriorityChange: (requestId: string, priority: 'low' | 'medium' | 'high') => void;
+  onRequestSpecUpdate?: (requestId: string, requestSpec: string) => void;
   zIndex?: number;
   onWidthChange?: (width: number) => void;
   requestMode: boolean;
@@ -29,6 +31,7 @@ export function CollabSidebar({
   onFinalizeRequest,
   onSendMessage,
   onPriorityChange,
+  onRequestSpecUpdate,
   zIndex = 1000000,
   onWidthChange,
   requestMode,
@@ -44,6 +47,8 @@ export function CollabSidebar({
   const [sendToUser, setSendToUser] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [aiAgent, setAiAgent] = useState<AIAgent | null>(null);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Use Better Auth session hook
   const { data: session, isPending } = authClient.useSession();
@@ -54,6 +59,31 @@ export function CollabSidebar({
       setShowLoginDialog(true);
     }
   }, [isOpen, session, isPending]);
+
+  // Sync selected request with props when requests are updated
+  useEffect(() => {
+    if (selectedRequest) {
+      const updatedRequest = requests.find((r) => r.id === selectedRequest.id);
+      if (updatedRequest) {
+        setSelectedRequest(updatedRequest);
+      }
+    }
+  }, [requests]);
+
+  // Initialize AI agent when a request is selected
+  useEffect(() => {
+    if (selectedRequest && (currentRole === 'PM' || currentRole === 'Designer')) {
+      const agent = createAIAgent({
+        role: currentRole,
+        componentId: selectedRequest.componentId,
+        requestTitle: selectedRequest.title,
+        requestDescription: selectedRequest.description,
+      });
+      setAiAgent(agent);
+    } else {
+      setAiAgent(null);
+    }
+  }, [selectedRequest, currentRole]);
 
   // Handle resize
   useEffect(() => {
@@ -109,10 +139,44 @@ export function CollabSidebar({
     }
   };
 
-  const handleSendMessage = () => {
-    if (!selectedRequest || !messageInput.trim()) return;
-    onSendMessage(selectedRequest.id, messageInput);
+  const handleSendMessage = async () => {
+    if (!selectedRequest || !messageInput.trim() || isSendingMessage) return;
+
+    const userMessage = messageInput.trim();
     setMessageInput('');
+
+    // If AI agent is available, get AI response first
+    if (aiAgent) {
+      setIsSendingMessage(true);
+
+      try {
+        // Get AI response
+        const aiResponse = await aiAgent.sendMessage(
+          userMessage,
+          selectedRequest.chatHistory
+        );
+
+        // Send both user message and AI response through parent callback
+        // The parent will update the request state
+        onSendMessage(selectedRequest.id, userMessage, aiResponse);
+
+        // Check if the AI response contains a refined requirement (for PM role)
+        // Update requestSpec with the AI's refined version
+        if (currentRole === 'PM' && onRequestSpecUpdate) {
+          // The AI response is the refined requirement, so update the requestSpec
+          onRequestSpecUpdate(selectedRequest.id, aiResponse);
+        }
+      } catch (error) {
+        console.error('Error getting AI response:', error);
+        // Still send user message even if AI fails
+        onSendMessage(selectedRequest.id, userMessage);
+      } finally {
+        setIsSendingMessage(false);
+      }
+    } else {
+      // No AI agent, just send the user message
+      onSendMessage(selectedRequest.id, userMessage);
+    }
   };
 
   const handleFinalizeClick = () => {
@@ -143,7 +207,7 @@ export function CollabSidebar({
 
     const name = session.user.name || session.user.email || 'User';
     const roleMap: Record<string, string> = {
-      'product_manager': 'PM',
+      'product-manager': 'PM',
       'designer': 'Designer',
       'developer': 'Developer',
     };
@@ -774,7 +838,13 @@ export function CollabSidebar({
                     <textarea
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
-                      placeholder="Type your message..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
                       style={{
                         width: '100%',
                         minHeight: '80px',
@@ -819,21 +889,21 @@ export function CollabSidebar({
                       </button>
                       <button
                         onClick={handleSendMessage}
-                        disabled={!messageInput.trim()}
+                        disabled={!messageInput.trim() || isSendingMessage}
                         style={{
                           flex: 1,
                           padding: '8px 16px',
-                          backgroundColor: messageInput.trim() ? '#9f7aea' : '#4a5568',
+                          backgroundColor: (messageInput.trim() && !isSendingMessage) ? '#9f7aea' : '#4a5568',
                           border: 'none',
                           borderRadius: '6px',
                           color: 'white',
                           fontSize: '13px',
                           fontWeight: '500',
-                          cursor: messageInput.trim() ? 'pointer' : 'not-allowed',
-                          opacity: messageInput.trim() ? 1 : 0.5,
+                          cursor: (messageInput.trim() && !isSendingMessage) ? 'pointer' : 'not-allowed',
+                          opacity: (messageInput.trim() && !isSendingMessage) ? 1 : 0.5,
                         }}
                       >
-                        📤 Send
+                        {isSendingMessage ? '⏳ Sending...' : '📤 Send'}
                       </button>
                     </div>
 

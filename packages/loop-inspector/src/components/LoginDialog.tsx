@@ -239,7 +239,7 @@ export function LoginDialog({ onClose, onLoginSuccess, zIndex = 1000001 }: Login
                 }}
               >
                 <option value="">Select your role</option>
-                <option value="product_manager">Product Manager</option>
+                <option value="product-manager">Product Manager</option>
                 <option value="designer">Designer</option>
                 <option value="developer">Developer</option>
               </select>
